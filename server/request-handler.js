@@ -12,7 +12,12 @@ this file and include it in basic-server.js so that it actually works.
 
 **************************************************************/
 
-var requestHandler = function(request, response) {
+var url = require('url');
+
+var storage = {results:[]};
+var id = 1;
+
+exports.requestHandler = function(request, response) {
   // Request and Response come from node's http module.
   //
   // They include information about both the incoming request, such as
@@ -29,30 +34,85 @@ var requestHandler = function(request, response) {
   // console.logs in your code.
   console.log("Serving request type " + request.method + " for url " + request.url);
 
-  // The outgoing status.
-  var statusCode = 200;
+  var parsedUrl = url.parse(request.url);
+  //console.dir(parsedUrl);
+  var pathname = parsedUrl.pathname;
+  //console.log('pathname: ', pathname);
 
-  // See the note below about CORS headers.
-  var headers = defaultCorsHeaders;
+  if (pathname !== '/classes/chatterbox')
+  {
+    var statusCode = 404;
+    var headers = defaultCorsHeaders;
+    headers['Content-Type'] = "text/plain";
+    response.end("ERROR");
+  }
+  else {
 
-  // Tell the client we are sending them plain text.
-  //
-  // You will need to change this if you are sending something
-  // other than plain text, like JSON or HTML.
-  headers['Content-Type'] = "text/plain";
+    if(request.method === 'POST') {
+      var body = '';
+      request.on('data', function (data) {
+        body += data;
+      });
+      request.on('end', function () {
+        storeMessage(body);
+        // storage.push(body);
+        // console.log(storage);
+      });
 
-  // .writeHead() writes to the request line and headers of the response,
-  // which includes the status and all headers.
-  response.writeHead(statusCode, headers);
+      var statusCode = 200;
+      var headers = defaultCorsHeaders;
+      headers['Content-Type'] = "text/plain";
+      response.writeHead(statusCode, headers);
+      response.end("Hello, World!");
+    }
 
-  // Make sure to always call response.end() - Node may not send
-  // anything back to the client until you do. The string you pass to
-  // response.end() will be the body of the response - i.e. what shows
-  // up in the browser.
-  //
-  // Calling .end "flushes" the response's internal buffer, forcing
-  // node to actually send all the data over to the client.
-  response.end("Hello, World!");
+    if(request.method === 'GET') {
+      //request.query
+      // console.log(fakeMessages);
+      var statusCode = 200;
+      var headers = defaultCorsHeaders;
+      headers['Content-Type'] = 'application/json';
+      response.writeHead(statusCode, headers);
+      response.end(JSON.stringify(storage));
+    }
+
+    if (request.method === 'OPTIONS') {
+      // The outgoing status.
+      var statusCode = 200;
+
+      // See the note below about CORS headers.
+      var headers = defaultCorsHeaders;
+
+      // Tell the client we are sending them plain text.
+      //
+      // You will need to change this if you are sending something
+      // other than plain text, like JSON or HTML.
+      headers['Content-Type'] = "text/plain";
+      // headers['Content-Type'] = 'application/json';
+
+      // .writeHead() writes to the request line and headers of the response,
+      // which includes the status and all headers.
+      response.writeHead(statusCode, headers);
+
+      // Make sure to always call response.end() - Node may not send
+      // anything back to the client until you do. The string you pass to
+      // response.end() will be the body of the response - i.e. what shows
+      // up in the browser.
+      //
+      // Calling .end "flushes" the response's internal buffer, forcing
+      // node to actually send all the data over to the client.
+      response.end("Hello, World!");
+    }
+  }
+};
+
+var storeMessage = function(body) {
+  message = JSON.parse(body);
+  var timestamp = new Date().toString();
+  message.updatedAt = message.createdAt = timestamp;
+  message.objectId = id++;
+  storage.results.unshift(message);
+  console.log(storage);
 };
 
 // These headers will allow Cross-Origin Resource Sharing (CORS).
@@ -67,7 +127,8 @@ var requestHandler = function(request, response) {
 var defaultCorsHeaders = {
   "access-control-allow-origin": "*",
   "access-control-allow-methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "access-control-allow-headers": "content-type, accept",
+  "access-control-allow-headers": "X-Parse-Application-Id, X-Parse-REST-API-Key, content-type, accept",
   "access-control-max-age": 10 // Seconds.
 };
 
+var fakeMessages = JSON.parse('{"results":[{"createdAt":"2015-03-23T21:54:08.070Z","objectId":"UgqDLBTyxK","roomname":"lobby","text":"woohoo!","updatedAt":"2015-03-23T21:54:08.070Z","username":"Pablo"},{"createdAt":"2015-03-23T21:53:42.407Z","objectId":"ryuGcZLrpy","roomname":"lobby","text":"Yo dude!","updatedAt":"2015-03-23T21:53:42.407Z","username":"<anonymous>"},{"createdAt":"2015-03-23T21:49:04.263Z","objectId":"KK4NjTm87X","roomname":"lobby","text":"heya","updatedAt":"2015-03-23T21:49:04.263Z","username":"Billy"}]}');
