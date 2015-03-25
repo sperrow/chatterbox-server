@@ -127,7 +127,6 @@ var readMessages = function(roomname, response) {
   console.log(path.join(__dirname, '/storage/', roomname + '.txt'));
   fs.readFile(path.join(__dirname, '/storage/', roomname + '.txt'), function(err, data) {
     if (err) throw err;
-    // console.log('response: ', response);
     response.end('{"results":['+data+']}');
   });
 };
