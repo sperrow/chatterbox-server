@@ -14,8 +14,7 @@ this file and include it in basic-server.js so that it actually works.
 
 var url = require('url');
 var fs = require('fs');
-
-// var storage = {results:[]};
+var path = require('path');
 
 var readRooms = function() {
   fs.readFile('roomlist.txt', function(err, data) {
@@ -35,48 +34,11 @@ readRooms();
 
 var id = 1;
 
-exports.requestHandler = function(request, response) {
-  // Request and Response come from node's http module.
-  //
-  // They include information about both the incoming request, such as
-  // headers and URL, and about the outgoing response, such as its status
-  // and content.
-  //
-  // Documentation for both request and response can be found in the HTTP section at
-  // http://nodejs.org/documentation/api/
-
-  // Do some basic logging.
-  //
-  // Adding more logging to your server can be an easy way to get passive
-  // debugging help, but you should always be careful about leaving stray
-  // console.logs in your code.
-  console.log("Serving request type " + request.method + " for url " + request.url);
-
-  var parsedUrl = url.parse(request.url);
-  var pathname = parsedUrl.pathname;
-  var roomname = pathname.slice(9) || 'lobby';
-
-  if(pathname.slice(0,9) !== '/classes/')
-  {
-    var statusCode = 404;
-    var headers = defaultCorsHeaders;
-    headers['Content-Type'] = "text/plain";
-    response.writeHead(statusCode, headers);
-    response.end("Error: File not Found.");
-
-  } else if(request.method === 'POST') {
-    var body = '';
-    request.on('data', function (data) {
-      body += data;
-    });
-    request.on('end', function () {
-      storeMessage(body, roomname, response);
-    });
-
-  } else if(request.method === 'GET') {
-    console.log('room name: '+roomname)
+var actions = {
+  'GET': function(request, response, roomname) {
     var statusCode = 200;
     var headers = defaultCorsHeaders;
+    // var roomname = roomname || 'room1';
     headers['Content-Type'] = 'application/json';
     response.writeHead(statusCode, headers);
     if (!roomList[roomname]) {
@@ -86,8 +48,17 @@ exports.requestHandler = function(request, response) {
       //request.query
       readMessages(roomname, response);
     }
-
-  } else if(request.method === 'OPTIONS') {
+  },
+  'POST': function(request, response, roomname) {
+    var body = '';
+    request.on('data', function (data) {
+      body += data;
+    });
+    request.on('end', function () {
+      storeMessage(body, roomname, response);
+    });
+  },
+  'OPTIONS': function(request, response, roomname) {
     // The outgoing status.
     var statusCode = 200;
 
@@ -116,9 +87,47 @@ exports.requestHandler = function(request, response) {
   }
 };
 
+exports.requestHandler = function(request, response) {
+  // Request and Response come from node's http module.
+  //
+  // They include information about both the incoming request, such as
+  // headers and URL, and about the outgoing response, such as its status
+  // and content.
+  //
+  // Documentation for both request and response can be found in the HTTP section at
+  // http://nodejs.org/documentation/api/
+
+  // Do some basic logging.
+  //
+  // Adding more logging to your server can be an easy way to get passive
+  // debugging help, but you should always be careful about leaving stray
+  // console.logs in your code.
+  console.log("Serving request type " + request.method + " for url " + request.url);
+
+  var parsedUrl = url.parse(request.url);// || url.parse(request.uri);
+  var pathname = parsedUrl.pathname;
+  var roomname = pathname.slice(9) || 'lobby';
+
+  if(pathname.slice(0,9) !== '/classes/' || pathname === '/classes')
+  {
+    var statusCode = 404;
+    var headers = defaultCorsHeaders;
+    headers['Content-Type'] = "text/plain";
+    response.writeHead(statusCode, headers);
+    response.end("Error: File not Found.");
+  } else {
+    var action = actions[request.method];  
+    if (action) {
+      action(request, response, roomname);
+    } else {}//todo
+  }
+};
+
 var readMessages = function(roomname, response) {
-  fs.readFile('storage/'+roomname+'.txt', function(err, data) {
+  console.log(path.join(__dirname, '/storage/', roomname + '.txt'));
+  fs.readFile(path.join(__dirname, '/storage/', roomname + '.txt'), function(err, data) {
     if (err) throw err;
+    // console.log('response: ', response);
     response.end('{"results":['+data+']}');
   });
 };
@@ -128,16 +137,15 @@ var storeMessage = function(body, roomname, response) {
   var timestamp = new Date().toString();
   message.updatedAt = message.createdAt = timestamp;
   message.objectId = id++;
-  console.log(roomname);
+  // console.log(roomname);
   if(!roomList[roomname]) {
     // add room to roomlist.txt
     roomList[roomname] = true;
     fs.appendFile('roomlist.txt', roomname + ',', function(err) {
       if (err) throw err;
-      // readRooms();
     });
     // post to room
-    fs.writeFile('storage/'+roomname+'.txt', JSON.stringify(message), function(err) {
+    fs.writeFile(path.join(__dirname, '/storage/', roomname + '.txt'), JSON.stringify(message), function(err) {
       if (err) throw err;
       var statusCode = 201;
       var headers = defaultCorsHeaders;
@@ -147,7 +155,7 @@ var storeMessage = function(body, roomname, response) {
     });
   } else {
     // append message 
-    fs.appendFile('storage/'+roomname+'.txt', ','+JSON.stringify(message), function(err) {
+    fs.appendFile(path.join(__dirname, '/storage/', roomname + '.txt'), ','+JSON.stringify(message), function(err) {
       if (err) throw err;
       var statusCode = 201;
       var headers = defaultCorsHeaders;
@@ -174,4 +182,4 @@ var defaultCorsHeaders = {
   "access-control-max-age": 10 // Seconds.
 };
 
-var fakeMessages = JSON.parse('{"results":[{"createdAt":"2015-03-23T21:54:08.070Z","objectId":"UgqDLBTyxK","roomname":"lobby","text":"woohoo!","updatedAt":"2015-03-23T21:54:08.070Z","username":"Pablo"},{"createdAt":"2015-03-23T21:53:42.407Z","objectId":"ryuGcZLrpy","roomname":"lobby","text":"Yo dude!","updatedAt":"2015-03-23T21:53:42.407Z","username":"<anonymous>"},{"createdAt":"2015-03-23T21:49:04.263Z","objectId":"KK4NjTm87X","roomname":"lobby","text":"heya","updatedAt":"2015-03-23T21:49:04.263Z","username":"Billy"}]}');
+// var fakeMessages = JSON.parse('{"results":[{"createdAt":"2015-03-23T21:54:08.070Z","objectId":"UgqDLBTyxK","roomname":"lobby","text":"woohoo!","updatedAt":"2015-03-23T21:54:08.070Z","username":"Pablo"},{"createdAt":"2015-03-23T21:53:42.407Z","objectId":"ryuGcZLrpy","roomname":"lobby","text":"Yo dude!","updatedAt":"2015-03-23T21:53:42.407Z","username":"<anonymous>"},{"createdAt":"2015-03-23T21:49:04.263Z","objectId":"KK4NjTm87X","roomname":"lobby","text":"heya","updatedAt":"2015-03-23T21:49:04.263Z","username":"Billy"}]}');

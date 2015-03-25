@@ -1,1 +1,1 @@
-lobby,secret,bathroom,
+lobby,secret,bathroom,messages,room2,room1,
